@@ -1071,11 +1071,15 @@ impl AigBitBlaster {
             }
             if let (Some(left), Some(right)) = (node_data.left(), node_data.right()) {
                 // This is an AND gate: output = left AND right
-                // The output is NOT negated (AigNode::new(id, false))
-                let output = get_var(&mut var_map, &mut next_var, &mut self.cnf, left); // Placeholder
-                let output_lit = BoolLit(node_data.id() as usize, true);
-                let left_lit = get_var(&mut var_map, &mut next_var, &mut self.cnf, left);
-                let right_lit = get_var(&mut var_map, &mut next_var, &mut self.cnf, right);
+                // The output node has id = node_data.id()
+                let output_node = AigNode::new(node_data.id(), false);
+                let left_node = left.clone();
+                let right_node = right.clone();
+
+                // Get or create CNF variables for all three nodes
+                let output_lit = get_var(&mut var_map, &mut next_var, &mut self.cnf, &output_node);
+                let left_lit = get_var(&mut var_map, &mut next_var, &mut self.cnf, &left_node);
+                let right_lit = get_var(&mut var_map, &mut next_var, &mut self.cnf, &right_node);
 
                 // CNF encoding for AND: output = left AND right
                 self.cnf.add_clause(vec![

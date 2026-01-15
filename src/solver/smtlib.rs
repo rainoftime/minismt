@@ -1314,16 +1314,8 @@ fn build_bool(
             }
         }
         SExpr::Atom(a) => match a.as_str() {
-            "true" => {
-                let lit = bb.new_bool();
-                bb.cnf_mut().add_clause(vec![lit]);
-                Ok(lit)
-            }
-            "false" => {
-                let lit = bb.new_bool();
-                bb.cnf_mut().add_clause(vec![BoolLit(lit.0, false)]);
-                Ok(lit)
-            }
+            "true" => Ok(bb.const_lit(true)),
+            "false" => Ok(bb.const_lit(false)),
             _ => Ok(bb.get_bool_sym(a.clone())),
         },
         _ => bail!("unsupported boolean expression"),

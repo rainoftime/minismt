@@ -44,16 +44,17 @@ impl AigBitBlasterAdapter {
         self.node_var_map.insert(id, var);
 
         if id == AigNode::TRUE_ID {
-            // Assert TRUE node is true
-            self.cnf.add_clause(vec![BoolLit(var, true)]);
+            if node.is_negated() {
+                // NOT(true) = false, so assert this variable is false
+                self.cnf.add_clause(vec![BoolLit(var, false)]);
+            } else {
+                // Assert TRUE node is true
+                self.cnf.add_clause(vec![BoolLit(var, true)]);
+            }
             return var;
         }
 
         // If it's an AND node, encode it
-        // We need to look up children in the AigManager
-        // Note: we need to be careful with borrowing. We can't hold reference to aig_mgr while mutating cnf if we were using split borrows,
-        // but here we are calling ensure_cnf_var recursively which mutates self.
-        // So we need to extract children info first.
         let children = self.aig_blaster.aig_mgr.get_children(node);
 
         if let Some((left, right)) = children {
