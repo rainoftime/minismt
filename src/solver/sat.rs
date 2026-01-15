@@ -1,22 +1,30 @@
 use anyhow::Result;
+use tracing::debug;
+use varisat::cnf::CnfFormula;
 use varisat::lit::Lit;
 use varisat::solver::Solver;
-use varisat::cnf::CnfFormula;
 use varisat::ExtendFormula;
-use tracing::{debug};
 
 use super::cnf::{BoolLit, Cnf};
 
 pub fn solve_cnf(c: &Cnf) -> Result<Option<Vec<bool>>> {
     let mut solver = Solver::new();
     let mut f = CnfFormula::new();
-    debug!(num_clauses = c.clauses.len(), num_vars = c.num_vars, "solve_cnf start");
+    debug!(
+        num_clauses = c.clauses.len(),
+        num_vars = c.num_vars,
+        "solve_cnf start"
+    );
     for cl in &c.clauses {
         let lits: Vec<Lit> = cl
             .iter()
             .map(|&BoolLit(var_idx, pol)| {
                 // varisat variables are 1-based; Lit::from_dimacs
-                let dim: isize = if pol { (var_idx as isize) + 1 } else { -((var_idx as isize) + 1) };
+                let dim: isize = if pol {
+                    (var_idx as isize) + 1
+                } else {
+                    -((var_idx as isize) + 1)
+                };
                 Lit::from_dimacs(dim)
             })
             .collect();
@@ -30,7 +38,9 @@ pub fn solve_cnf(c: &Cnf) -> Result<Option<Vec<bool>>> {
             let d = lit.to_dimacs();
             let var = d.unsigned_abs() as usize - 1;
             let sign = d > 0;
-            if var < vals.len() { vals[var] = sign; }
+            if var < vals.len() {
+                vals[var] = sign;
+            }
         }
         debug!("solve_cnf: SAT");
         Ok(Some(vals))
@@ -39,5 +49,3 @@ pub fn solve_cnf(c: &Cnf) -> Result<Option<Vec<bool>>> {
         Ok(None)
     }
 }
-
-

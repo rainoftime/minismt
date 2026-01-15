@@ -1,20 +1,20 @@
 use anyhow::{Context, Result};
 use tracing::{debug, trace};
 
-pub mod sexpr;
-pub mod smtlib;
+pub mod aig;
+pub mod aig_bitblaster;
+pub mod aig_cnf;
+pub mod aig_sat_interface;
 pub mod bv;
 pub mod cnf;
-pub mod aig;
-pub mod aig_cnf;
-pub mod aig_bitblaster;
-pub mod aig_sat_interface;
-pub mod sat;
-pub mod rewrites;
 pub mod config;
-pub mod symbol_table;
-pub mod parsed_item;
 pub mod frontend;
+pub mod parsed_item;
+pub mod rewrites;
+pub mod sat;
+pub mod sexpr;
+pub mod smtlib;
+pub mod symbol_table;
 
 pub use config::SolverConfig;
 
@@ -36,7 +36,7 @@ impl SmtSolver {
             engine: smtlib::Engine::new_with_config(config),
         }
     }
-    
+
     pub fn new_with_config(config: SolverConfig) -> Self {
         Self {
             engine: smtlib::Engine::new_with_config(config),
@@ -65,6 +65,3 @@ impl SmtSolver {
         }
     }
 }
-
-
-

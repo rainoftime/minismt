@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct SortBv { pub width: u32 }
+pub struct SortBv {
+    pub width: u32,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum BvTerm {
@@ -9,22 +11,22 @@ pub enum BvTerm {
     Const { name: String, sort: SortBv },
 
     // Unary
-    Not(Box<BvTerm>),      // bitwise not
-    Neg(Box<BvTerm>),      // two's complement negation
-    
+    Not(Box<BvTerm>), // bitwise not
+    Neg(Box<BvTerm>), // two's complement negation
+
     // Reduction operations (produce 1-bit result)
-    RedOr(Box<BvTerm>),    // OR reduction: 1 if any bit is 1, else 0
-    RedAnd(Box<BvTerm>),   // AND reduction: 1 if all bits are 1, else 0
-    RedXor(Box<BvTerm>),   // XOR reduction: 1 if odd number of bits are 1, else 0
+    RedOr(Box<BvTerm>),  // OR reduction: 1 if any bit is 1, else 0
+    RedAnd(Box<BvTerm>), // AND reduction: 1 if all bits are 1, else 0
+    RedXor(Box<BvTerm>), // XOR reduction: 1 if odd number of bits are 1, else 0
 
     // Binary bitwise/arith
     And(Box<BvTerm>, Box<BvTerm>),
-    Nand(Box<BvTerm>, Box<BvTerm>),  // bitwise NAND
+    Nand(Box<BvTerm>, Box<BvTerm>), // bitwise NAND
     Or(Box<BvTerm>, Box<BvTerm>),
     Xor(Box<BvTerm>, Box<BvTerm>),
-    Xnor(Box<BvTerm>, Box<BvTerm>),  // bitwise exclusive NOR
-    Nor(Box<BvTerm>, Box<BvTerm>),   // bitwise NOR
-    Comp(Box<BvTerm>, Box<BvTerm>),  // bvcomp: returns 1-bit vector (1 if equal else 0)
+    Xnor(Box<BvTerm>, Box<BvTerm>), // bitwise exclusive NOR
+    Nor(Box<BvTerm>, Box<BvTerm>),  // bitwise NOR
+    Comp(Box<BvTerm>, Box<BvTerm>), // bvcomp: returns 1-bit vector (1 if equal else 0)
     Add(Box<BvTerm>, Box<BvTerm>),
     Sub(Box<BvTerm>, Box<BvTerm>),
     Mul(Box<BvTerm>, Box<BvTerm>),
@@ -37,7 +39,7 @@ pub enum BvTerm {
     // Division / remainder (unsigned semantics)
     Udiv(Box<BvTerm>, Box<BvTerm>),
     Urem(Box<BvTerm>, Box<BvTerm>),
-    
+
     // Signed division / remainder / modulo
     Sdiv(Box<BvTerm>, Box<BvTerm>),
     Srem(Box<BvTerm>, Box<BvTerm>),
@@ -58,24 +60,26 @@ pub enum BvTerm {
     Ule(Box<BvTerm>, Box<BvTerm>),              // width 1 result
     Slt(Box<BvTerm>, Box<BvTerm>),              // width 1 result
     Sle(Box<BvTerm>, Box<BvTerm>),              // width 1 result
-    
+
     // Overflow detection operations (return 1-bit result)
-    Uaddo(Box<BvTerm>, Box<BvTerm>),            // unsigned addition overflow
-    Saddo(Box<BvTerm>, Box<BvTerm>),            // signed addition overflow
-    Usubo(Box<BvTerm>, Box<BvTerm>),            // unsigned subtraction overflow  
-    Ssubo(Box<BvTerm>, Box<BvTerm>),            // signed subtraction overflow
-    Umulo(Box<BvTerm>, Box<BvTerm>),            // unsigned multiplication overflow
-    Smulo(Box<BvTerm>, Box<BvTerm>),            // signed multiplication overflow
-    Sdivo(Box<BvTerm>, Box<BvTerm>),            // signed division overflow
-    
+    Uaddo(Box<BvTerm>, Box<BvTerm>), // unsigned addition overflow
+    Saddo(Box<BvTerm>, Box<BvTerm>), // signed addition overflow
+    Usubo(Box<BvTerm>, Box<BvTerm>), // unsigned subtraction overflow
+    Ssubo(Box<BvTerm>, Box<BvTerm>), // signed subtraction overflow
+    Umulo(Box<BvTerm>, Box<BvTerm>), // unsigned multiplication overflow
+    Smulo(Box<BvTerm>, Box<BvTerm>), // signed multiplication overflow
+    Sdivo(Box<BvTerm>, Box<BvTerm>), // signed division overflow
+
     // Negation overflow
-    Nego(Box<BvTerm>),                          // negation overflow
+    Nego(Box<BvTerm>), // negation overflow
 }
 
 impl BvTerm {
     pub fn sort(&self) -> Option<SortBv> {
         match self {
-            BvTerm::Value { bits } => Some(SortBv { width: bits.len() as u32 }),
+            BvTerm::Value { bits } => Some(SortBv {
+                width: bits.len() as u32,
+            }),
             BvTerm::Const { sort, .. } => Some(*sort),
             BvTerm::Not(a) | BvTerm::Neg(a) => a.sort(),
             BvTerm::RedOr(_) | BvTerm::RedAnd(_) | BvTerm::RedXor(_) => Some(SortBv { width: 1 }),
@@ -97,10 +101,19 @@ impl BvTerm {
             | BvTerm::Srem(a, _)
             | BvTerm::Smod(a, _) => a.sort(),
             BvTerm::Comp(_, _) => Some(SortBv { width: 1 }),
-            BvTerm::Eq(_, _) | BvTerm::Ult(_, _) | BvTerm::Ule(_, _) | BvTerm::Slt(_, _) | BvTerm::Sle(_, _) => None,
-            // Overflow operations return 1-bit result  
-            BvTerm::Uaddo(_, _) | BvTerm::Saddo(_, _) | BvTerm::Usubo(_, _) | BvTerm::Ssubo(_, _)
-            | BvTerm::Umulo(_, _) | BvTerm::Smulo(_, _) | BvTerm::Sdivo(_, _) => Some(SortBv { width: 1 }),
+            BvTerm::Eq(_, _)
+            | BvTerm::Ult(_, _)
+            | BvTerm::Ule(_, _)
+            | BvTerm::Slt(_, _)
+            | BvTerm::Sle(_, _) => None,
+            // Overflow operations return 1-bit result
+            BvTerm::Uaddo(_, _)
+            | BvTerm::Saddo(_, _)
+            | BvTerm::Usubo(_, _)
+            | BvTerm::Ssubo(_, _)
+            | BvTerm::Umulo(_, _)
+            | BvTerm::Smulo(_, _)
+            | BvTerm::Sdivo(_, _) => Some(SortBv { width: 1 }),
             BvTerm::Nego(_) => Some(SortBv { width: 1 }),
             BvTerm::Concat(a, b) => {
                 let wa = a.sort()?.width;
@@ -128,10 +141,16 @@ impl BvTerm {
                     Some(SortBv { width }) if width == 1 => true,
                     _ => false,
                 };
-                if !cond_ok { return None; }
+                if !cond_ok {
+                    return None;
+                }
                 t.sort().and_then(|st| {
                     let se = e.sort()?;
-                    if st.width == se.width { Some(st) } else { None }
+                    if st.width == se.width {
+                        Some(st)
+                    } else {
+                        None
+                    }
                 })
             }
         }
@@ -142,7 +161,7 @@ impl BvTerm {
 /// Returns the bit vector result as a Vec<bool>, or an error if evaluation fails.
 pub fn eval_term(term: &BvTerm, model: &HashMap<String, Vec<bool>>) -> anyhow::Result<Vec<bool>> {
     use anyhow::bail;
-    
+
     match term {
         BvTerm::Value { bits } => Ok(bits.clone()),
         BvTerm::Const { name, sort } => {
@@ -150,7 +169,12 @@ pub fn eval_term(term: &BvTerm, model: &HashMap<String, Vec<bool>>) -> anyhow::R
                 if bits.len() == sort.width as usize {
                     Ok(bits.clone())
                 } else {
-                    bail!("Model value for {} has wrong width: expected {}, got {}", name, sort.width, bits.len())
+                    bail!(
+                        "Model value for {} has wrong width: expected {}, got {}",
+                        name,
+                        sort.width,
+                        bits.len()
+                    )
                 }
             } else {
                 // If not in model, default to all zeros
@@ -312,7 +336,9 @@ pub fn eval_term(term: &BvTerm, model: &HashMap<String, Vec<bool>>) -> anyhow::R
         BvTerm::RotateLeft { a, amount } => {
             let av = eval_term(a, model)?;
             let n = av.len();
-            if n == 0 { return Ok(av); }
+            if n == 0 {
+                return Ok(av);
+            }
             let rot = (*amount as usize) % n;
             let mut result = Vec::with_capacity(n);
             result.extend(&av[rot..]);
@@ -322,11 +348,13 @@ pub fn eval_term(term: &BvTerm, model: &HashMap<String, Vec<bool>>) -> anyhow::R
         BvTerm::RotateRight { a, amount } => {
             let av = eval_term(a, model)?;
             let n = av.len();
-            if n == 0 { return Ok(av); }
+            if n == 0 {
+                return Ok(av);
+            }
             let rot = (*amount as usize) % n;
             let mut result = Vec::with_capacity(n);
-            result.extend(&av[n-rot..]);
-            result.extend(&av[..n-rot]);
+            result.extend(&av[n - rot..]);
+            result.extend(&av[..n - rot]);
             Ok(result)
         }
         BvTerm::Repeat { a, times } => {
@@ -523,7 +551,11 @@ fn bv_sdiv(a: &[bool], b: &[bool]) -> Vec<bool> {
     let av = signed_from_bits(a);
     let bv = signed_from_bits(b);
     if bv == 0 {
-        return if av >= 0 { vec![true; n] } else { vec![false; n-1].into_iter().chain(vec![true]).collect() };
+        return if av >= 0 {
+            vec![true; n]
+        } else {
+            vec![false; n - 1].into_iter().chain(vec![true]).collect()
+        };
     }
     signed_to_bits(av / bv, n)
 }
@@ -646,7 +678,9 @@ fn from_bits(bits: &[bool]) -> u128 {
 }
 
 fn signed_from_bits(bits: &[bool]) -> i128 {
-    if bits.is_empty() { return 0; }
+    if bits.is_empty() {
+        return 0;
+    }
     let n = bits.len();
     let unsigned = from_bits(bits);
     let sign_bit = bits[n - 1];
@@ -667,6 +701,10 @@ fn to_bits(val: u128, width: usize) -> Vec<bool> {
 }
 
 fn signed_to_bits(val: i128, width: usize) -> Vec<bool> {
-    let mask = if width >= 128 { !0u128 } else { (1u128 << width) - 1 };
+    let mask = if width >= 128 {
+        !0u128
+    } else {
+        (1u128 << width) - 1
+    };
     to_bits((val as u128) & mask, width)
 }

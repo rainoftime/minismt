@@ -1,11 +1,11 @@
 mod solver;
 
 use anyhow::{Context, Result};
-use std::io::{self, Read};
-use std::fs;
 use std::env;
-use tracing_subscriber::{EnvFilter, fmt};
-use tracing::{info, debug};
+use std::fs;
+use std::io::{self, Read};
+use tracing::{debug, info};
+use tracing_subscriber::{fmt, EnvFilter};
 
 fn print_help() {
     println!("minismt - An SMT solver");
@@ -15,7 +15,9 @@ fn print_help() {
     println!();
     println!("OPTIONS:");
     println!("    -h, --help, -help           Print this help message");
-    println!("    --check-model               Enable model checking (verify model satisfies assertions)");
+    println!(
+        "    --check-model               Enable model checking (verify model satisfies assertions)"
+    );
     println!();
     println!("SIMPLIFICATION OPTIONS:");
     println!("    --no-opts                   Disable all optimizations");
@@ -26,7 +28,9 @@ fn print_help() {
     println!("    --no-bitblast-opts          Disable bitblasting optimizations");
     println!();
     println!("ARGS:");
-    println!("    <FILE>                      Input SMT-LIB file (reads from stdin if not specified)");
+    println!(
+        "    <FILE>                      Input SMT-LIB file (reads from stdin if not specified)"
+    );
     println!();
     println!("EXAMPLES:");
     println!("    minismt input.smt2                      # Read from file");
@@ -47,11 +51,11 @@ fn main() -> Result<()> {
 
     debug!("starting minismt");
     let args: Vec<String> = env::args().collect();
-    
+
     // Parse command-line arguments
     let mut config = solver::SolverConfig::default();
     let mut file_path: Option<String> = None;
-    
+
     let mut i = 1;
     while i < args.len() {
         let arg = &args[i];
@@ -96,12 +100,14 @@ fn main() -> Result<()> {
         }
         i += 1;
     }
-    
+
     let input = if let Some(path) = file_path {
         fs::read_to_string(&path).context("failed to read input file")?
     } else {
         let mut s = String::new();
-        io::stdin().read_to_string(&mut s).context("failed to read stdin")?;
+        io::stdin()
+            .read_to_string(&mut s)
+            .context("failed to read stdin")?;
         s
     };
 

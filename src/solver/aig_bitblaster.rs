@@ -1,10 +1,10 @@
 use std::collections::HashMap;
-use tracing::{trace, debug};
+use tracing::{debug, trace};
 
 use super::aig::{AigManager, AigNode};
 // use super::aig_cnf::AigCnfEncoder;
-use super::cnf::Cnf;
 use super::bv::BvTerm;
+use super::cnf::Cnf;
 use super::config::SolverConfig;
 
 /// AIG-based bit-blaster following Bitwuzla's architecture
@@ -13,12 +13,12 @@ pub struct AigBitBlaster {
     pub aig_mgr: AigManager,
     pub bool_syms: HashMap<String, AigNode>,
     pub var_bits: HashMap<(String, u32), AigNode>,
-    
+
     const_true: AigNode,
     const_false: AigNode,
     const_bit_cache: HashMap<(Vec<bool>, u32), AigNode>,
     bv_cache: HashMap<BvTerm, Vec<AigNode>>,
-    
+
     config: SolverConfig,
 }
 
@@ -26,12 +26,12 @@ impl AigBitBlaster {
     pub fn new() -> Self {
         Self::new_with_config(SolverConfig::default())
     }
-    
+
     pub fn new_with_config(config: SolverConfig) -> Self {
         let aig_mgr = AigManager::new();
         let const_true = aig_mgr.mk_true();
         let const_false = aig_mgr.mk_false();
-        
+
         Self {
             cnf: Cnf::new(),
             aig_mgr,
@@ -44,27 +44,27 @@ impl AigBitBlaster {
             config,
         }
     }
-    
-    pub fn new_bool(&mut self) -> AigNode { 
-        self.aig_mgr.mk_const() 
+
+    pub fn new_bool(&mut self) -> AigNode {
+        self.aig_mgr.mk_const()
     }
-    
-    pub fn new_bit(&mut self) -> AigNode { 
-        self.new_bool() 
+
+    pub fn new_bit(&mut self) -> AigNode {
+        self.new_bool()
     }
-    
-    pub fn mk_not(&mut self, a: &AigNode) -> AigNode { 
-        self.aig_mgr.mk_not(a) 
+
+    pub fn mk_not(&mut self, a: &AigNode) -> AigNode {
+        self.aig_mgr.mk_not(a)
     }
-    
+
     pub fn mk_and(&mut self, a: &AigNode, b: &AigNode) -> AigNode {
         self.aig_mgr.mk_and(a, b)
     }
-    
+
     pub fn mk_or(&mut self, a: &AigNode, b: &AigNode) -> AigNode {
         self.aig_mgr.mk_or(a, b)
     }
-    
+
     pub fn mk_xor(&mut self, a: &AigNode, b: &AigNode) -> AigNode {
         // a XOR b = (a AND NOT b) OR (NOT a AND b)
         let not_a = self.mk_not(a);
@@ -73,15 +73,15 @@ impl AigBitBlaster {
         let and2 = self.mk_and(&not_a, b);
         self.mk_or(&and1, &and2)
     }
-    
+
     pub fn mk_iff(&mut self, a: &AigNode, b: &AigNode) -> AigNode {
         self.aig_mgr.mk_iff(a, b)
     }
-    
+
     pub fn mk_ite(&mut self, cond: &AigNode, then_node: &AigNode, else_node: &AigNode) -> AigNode {
         self.aig_mgr.mk_ite(cond, then_node, else_node)
     }
-    
+
     pub fn get_bool_sym<S: Into<String>>(&mut self, name: S) -> AigNode {
         let key: String = name.into();
         if let Some(node) = self.bool_syms.get(&key) {
@@ -91,11 +91,11 @@ impl AigBitBlaster {
         self.bool_syms.insert(key, node.clone());
         node
     }
-    
-    pub fn lookup_bool_sym(&self, name: &str) -> Option<AigNode> { 
-        self.bool_syms.get(name).cloned() 
+
+    pub fn lookup_bool_sym(&self, name: &str) -> Option<AigNode> {
+        self.bool_syms.get(name).cloned()
     }
-    
+
     pub fn const_lit(&mut self, value: bool) -> AigNode {
         if value {
             self.const_true.clone()
@@ -103,13 +103,13 @@ impl AigBitBlaster {
             self.const_false.clone()
         }
     }
-    
+
     pub fn assert_true(&mut self, node: &AigNode) {
         // Convert AIG node to CNF and assert
         // For now, just add a placeholder - full implementation would use AigCnfEncoder
         debug!("Asserting AIG node as true: {:?}", node);
     }
-    
+
     pub fn emit_bit(&mut self, t: &BvTerm, i: u32) -> AigNode {
         match t {
             BvTerm::Value { bits } => {
@@ -140,7 +140,7 @@ impl AigBitBlaster {
             }
         }
     }
-    
+
     pub fn bool_eq(&mut self, a: &BvTerm, b: &BvTerm) -> AigNode {
         // Constant folding
         if self.config.enable_const_prop {
@@ -152,16 +152,16 @@ impl AigBitBlaster {
                 return self.const_lit(is_equal);
             }
         }
-        
+
         let va = self.emit_bits(a);
         let vb = self.emit_bits(b);
         assert_eq!(va.len(), vb.len());
-        
+
         // Check if all bits are identical
         if va.iter().zip(vb.iter()).all(|(a, b)| a == b) {
             return self.const_lit(true);
         }
-        
+
         // Compute equality bit by bit
         let mut eq_bits = Vec::with_capacity(va.len());
         for (ai, bi) in va.into_iter().zip(vb.into_iter()) {
@@ -172,7 +172,7 @@ impl AigBitBlaster {
                 eq_bits.push(self.mk_not(&xor));
             }
         }
-        
+
         // AND all equality bits
         let mut result = eq_bits[0].clone();
         for bit in &eq_bits[1..] {
@@ -180,18 +180,22 @@ impl AigBitBlaster {
         }
         result
     }
-    
+
     pub fn emit_ult_bool(&mut self, a: &BvTerm, b: &BvTerm) -> AigNode {
         // Constant folding
         if self.config.enable_const_prop {
             if let (BvTerm::Value { bits: ba }, BvTerm::Value { bits: bb }) = (a, b) {
-                let mut an: u128 = 0; 
-                for (i, &bt) in ba.iter().enumerate() { 
-                    if bt { an |= 1u128 << i; } 
+                let mut an: u128 = 0;
+                for (i, &bt) in ba.iter().enumerate() {
+                    if bt {
+                        an |= 1u128 << i;
+                    }
                 }
-                let mut bn: u128 = 0; 
-                for (i, &bt) in bb.iter().enumerate() { 
-                    if bt { bn |= 1u128 << i; } 
+                let mut bn: u128 = 0;
+                for (i, &bt) in bb.iter().enumerate() {
+                    if bt {
+                        bn |= 1u128 << i;
+                    }
                 }
                 return self.const_lit(an < bn);
             }
@@ -205,23 +209,23 @@ impl AigBitBlaster {
         // Compute unsigned less-than from MSB to LSB
         let mut less_terms = Vec::with_capacity(w);
         let mut prefix_eq = self.const_lit(true);
-        
+
         for k in (0..w).rev() {
             let ak = &va[k];
             let bk = &vb[k];
-            
+
             // ak < bk at bit k is (!ak & bk)
             let not_ak = self.mk_not(ak);
             let ak_lt_bk = self.mk_and(&not_ak, bk);
             let term = self.mk_and(&prefix_eq, &ak_lt_bk);
             less_terms.push(term);
-            
+
             // Update prefix_eq: prefix_eq & (ak == bk)
             let xor = self.mk_xor(ak, bk);
             let eq = self.mk_not(&xor);
             prefix_eq = self.mk_and(&prefix_eq, &eq);
         }
-        
+
         // OR all less-than terms
         let mut result = less_terms[0].clone();
         for term in &less_terms[1..] {
@@ -229,13 +233,13 @@ impl AigBitBlaster {
         }
         result
     }
-    
+
     pub fn emit_ule_bool(&mut self, a: &BvTerm, b: &BvTerm) -> AigNode {
         let lt = self.emit_ult_bool(a, b);
         let eq = self.bool_eq(a, b);
         self.mk_or(&lt, &eq)
     }
-    
+
     pub fn emit_slt_bool(&mut self, a: &BvTerm, b: &BvTerm) -> AigNode {
         let va = self.emit_bits(a);
         let vb = self.emit_bits(b);
@@ -243,7 +247,7 @@ impl AigBitBlaster {
         let w = va.len();
         let sa = &va[w - 1];
         let sb = &vb[w - 1];
-        
+
         let sign_diff = self.mk_xor(sa, sb);
         let case_sign = self.mk_and(&sign_diff, sa); // sa=1,sb=0 => a<b
         let not_sd = self.mk_not(&sign_diff);
@@ -251,11 +255,11 @@ impl AigBitBlaster {
         let case_same = self.mk_and(&not_sd, &ult);
         self.mk_or(&case_sign, &case_same)
     }
-    
+
     pub fn ite_bit(&mut self, c: &AigNode, t: &AigNode, e: &AigNode) -> AigNode {
         self.mk_ite(c, t, e)
     }
-    
+
     fn add_bits(&mut self, a: &[AigNode], b: &[AigNode]) -> Vec<AigNode> {
         assert_eq!(a.len(), b.len());
         let w = a.len();
@@ -276,7 +280,7 @@ impl AigBitBlaster {
         }
         out
     }
-    
+
     fn sub_bits(&mut self, a: &[AigNode], b: &[AigNode]) -> Vec<AigNode> {
         // a - b = a + (~b + 1)
         let nb: Vec<AigNode> = b.iter().map(|bit| self.mk_not(bit)).collect();
@@ -286,13 +290,13 @@ impl AigBitBlaster {
         let negated_b = self.add_bits(&one, &nb); // Add 1
         self.add_bits(a, &negated_b)
     }
-    
+
     fn mul_bits(&mut self, a: &[AigNode], b: &[AigNode]) -> Vec<AigNode> {
         assert_eq!(a.len(), b.len());
         let w = a.len();
         let z = self.const_lit(false);
         let mut acc: Vec<AigNode> = vec![z.clone(); w];
-        
+
         for i in 0..w {
             // partial = if b[i] then (a << i) else 0
             let mut shifted: Vec<AigNode> = Vec::with_capacity(w);
@@ -300,17 +304,17 @@ impl AigBitBlaster {
                 let src = if j >= i { &a[j - i] } else { &z };
                 shifted.push(src.clone());
             }
-            
+
             // acc = acc + ite(b[i], shifted, 0)
             let mut pp = Vec::with_capacity(w);
-            for j in 0..w { 
-                pp.push(self.mk_ite(&b[i], &shifted[j], &z)); 
+            for j in 0..w {
+                pp.push(self.mk_ite(&b[i], &shifted[j], &z));
             }
             acc = self.add_bits(&acc, &pp);
         }
         acc
     }
-    
+
     fn concat_bits(&mut self, a: &[AigNode], b: &[AigNode]) -> Vec<AigNode> {
         // LSB-first: result = low bits from b, then from a
         let mut out = Vec::with_capacity(a.len() + b.len());
@@ -318,7 +322,7 @@ impl AigBitBlaster {
         out.extend_from_slice(a);
         out
     }
-    
+
     pub fn emit_bits(&mut self, t: &BvTerm) -> Vec<AigNode> {
         // Check cache first
         if self.config.enable_global_simp {
@@ -540,85 +544,121 @@ impl AigBitBlaster {
         }
         result
     }
-    
+
     /// Convert the entire AIG to CNF
     pub fn to_cnf(&mut self) {
         // This would traverse all AIG nodes and convert them to CNF
         // For now, this is a placeholder
         debug!("Converting AIG to CNF");
     }
-    
+
     /// Implement shift left operation
     fn shl_bits(&mut self, a: &[AigNode], b: &[AigNode]) -> Vec<AigNode> {
         let width = a.len();
-        let mut result = Vec::with_capacity(width);
-        
-        // Convert shift amount to integer
-        let shift_amount = self.bits_to_uint(b);
-        
-        for i in 0..width {
-            if i < shift_amount as usize {
-                // Shifted out bits become 0
-                result.push(self.const_lit(false));
-            } else {
-                // Shift the bit from position (i - shift_amount)
-                let src_pos = i - shift_amount as usize;
-                if src_pos < width {
-                    result.push(a[src_pos].clone());
-                } else {
-                    result.push(self.const_lit(false));
-                }
+        let b_width = b.len();
+        let max_shift = (width as f64).log2().ceil() as usize;
+
+        let mut overshift = self.const_lit(false);
+        for i in max_shift..b_width {
+            overshift = self.mk_or(&overshift, &b[i]);
+        }
+
+        let mut current = a.to_vec();
+
+        let limit = std::cmp::min(b_width, max_shift);
+        for i in 0..limit {
+            let shift_amt = 1 << i;
+            let mut shifted = vec![self.const_lit(false); width];
+            for k in shift_amt..width {
+                shifted[k] = current[k - shift_amt].clone();
+            }
+
+            for k in 0..width {
+                current[k] = self.mk_ite(&b[i], &shifted[k], &current[k]);
             }
         }
-        
+
+        let zero = self.const_lit(false);
+        let mut result = Vec::with_capacity(width);
+        for k in 0..width {
+            result.push(self.mk_ite(&overshift, &zero, &current[k]));
+        }
         result
     }
-    
+
     /// Implement logical shift right operation
     fn lshr_bits(&mut self, a: &[AigNode], b: &[AigNode]) -> Vec<AigNode> {
         let width = a.len();
-        let mut result = Vec::with_capacity(width);
-        
-        // Convert shift amount to integer
-        let shift_amount = self.bits_to_uint(b);
-        
-        for i in 0..width {
-            let src_pos = i + shift_amount as usize;
-            if src_pos < width {
-                result.push(a[src_pos].clone());
-            } else {
-                // Shifted out bits become 0
-                result.push(self.const_lit(false));
+        let b_width = b.len();
+        let max_shift = (width as f64).log2().ceil() as usize;
+
+        let mut overshift = self.const_lit(false);
+        for i in max_shift..b_width {
+            overshift = self.mk_or(&overshift, &b[i]);
+        }
+
+        let mut current = a.to_vec();
+
+        let limit = std::cmp::min(b_width, max_shift);
+        for i in 0..limit {
+            let shift_amt = 1 << i;
+            let mut shifted = vec![self.const_lit(false); width];
+            for k in 0..(width - shift_amt) {
+                shifted[k] = current[k + shift_amt].clone();
+            }
+
+            for k in 0..width {
+                current[k] = self.mk_ite(&b[i], &shifted[k], &current[k]);
             }
         }
-        
+
+        let zero = self.const_lit(false);
+        let mut result = Vec::with_capacity(width);
+        for k in 0..width {
+            result.push(self.mk_ite(&overshift, &zero, &current[k]));
+        }
         result
     }
-    
+
     /// Implement arithmetic shift right operation
     fn ashr_bits(&mut self, a: &[AigNode], b: &[AigNode]) -> Vec<AigNode> {
         let width = a.len();
-        let mut result = Vec::with_capacity(width);
-        
-        // Convert shift amount to integer
-        let shift_amount = self.bits_to_uint(b);
-        
-        // Get the sign bit (MSB)
-        let sign_bit = &a[width - 1];
-        
-        for i in 0..width {
-            let src_pos = i + shift_amount as usize;
-            if src_pos < width {
-                result.push(a[src_pos].clone());
-            } else {
-                // Shifted out bits become the sign bit
-                result.push(sign_bit.clone());
+        let b_width = b.len();
+        let max_shift = (width as f64).log2().ceil() as usize;
+
+        let mut overshift = self.const_lit(false);
+        for i in max_shift..b_width {
+            overshift = self.mk_or(&overshift, &b[i]);
+        }
+
+        let sign_bit = a.last().cloned().unwrap_or_else(|| self.const_lit(false));
+
+        let mut current = a.to_vec();
+
+        let limit = std::cmp::min(b_width, max_shift);
+        for i in 0..limit {
+            let shift_amt = 1 << i;
+            let mut shifted = vec![self.const_lit(false); width];
+            for k in 0..width {
+                if k + shift_amt < width {
+                    shifted[k] = current[k + shift_amt].clone();
+                } else {
+                    shifted[k] = sign_bit.clone();
+                }
+            }
+
+            for k in 0..width {
+                current[k] = self.mk_ite(&b[i], &shifted[k], &current[k]);
             }
         }
-        
+
+        let mut result = Vec::with_capacity(width);
+        for k in 0..width {
+            result.push(self.mk_ite(&overshift, &sign_bit, &current[k]));
+        }
         result
     }
-    
+
     /// Convert bit vector to unsigned integer
     fn bits_to_uint(&self, bits: &[AigNode]) -> u32 {
         // For now, we'll use a simple approach
@@ -632,66 +672,89 @@ impl AigBitBlaster {
         }
         result
     }
-    
+
+    fn mux_bits(&mut self, cond: &AigNode, t: &[AigNode], e: &[AigNode]) -> Vec<AigNode> {
+        assert_eq!(t.len(), e.len());
+        t.iter()
+            .zip(e.iter())
+            .map(|(tb, eb)| self.mk_ite(cond, tb, eb))
+            .collect()
+    }
+
+    fn ule_bits(&mut self, a: &[AigNode], b: &[AigNode]) -> AigNode {
+        assert_eq!(a.len(), b.len());
+        let width = a.len();
+        let mut prefix_eq = self.const_lit(true);
+        let mut is_less = self.const_lit(false);
+
+        for i in (0..width).rev() {
+            let not_a = self.mk_not(&a[i]);
+            let lt = self.mk_and(&not_a, &b[i]);
+            let term = self.mk_and(&prefix_eq, &lt);
+            is_less = self.mk_or(&is_less, &term);
+
+            let xor = self.mk_xor(&a[i], &b[i]);
+            let eq = self.mk_not(&xor);
+            prefix_eq = self.mk_and(&prefix_eq, &eq);
+        }
+        self.mk_or(&is_less, &prefix_eq)
+    }
+
+    fn udiv_rem_bits(&mut self, a: &[AigNode], b: &[AigNode]) -> (Vec<AigNode>, Vec<AigNode>) {
+        let width = a.len();
+        assert_eq!(width, b.len());
+
+        let b_has_one = self.redor_bits(b);
+        let is_zero = self.mk_not(&b_has_one);
+
+        let mut r = vec![self.const_lit(false); width];
+        let mut q_res = vec![self.const_lit(false); width];
+
+        for i in (0..width).rev() {
+            let mut tmp = Vec::with_capacity(width + 1);
+            tmp.push(a[i].clone());
+            tmp.extend_from_slice(&r);
+
+            let mut b_ext = Vec::with_capacity(width + 1);
+            b_ext.extend_from_slice(b);
+            b_ext.push(self.const_lit(false));
+
+            let cond = self.ule_bits(&b_ext, &tmp);
+
+            let diff = self.sub_bits(&tmp, &b_ext);
+
+            let mut r_new = Vec::with_capacity(width + 1);
+            for k in 0..=width {
+                r_new.push(self.mk_ite(&cond, &diff[k], &tmp[k]));
+            }
+
+            r = r_new[0..width].to_vec();
+            q_res[i] = cond;
+        }
+
+        let all_ones = vec![self.const_lit(true); width];
+        let final_q = self.mux_bits(&is_zero, &all_ones, &q_res);
+        let final_r = self.mux_bits(&is_zero, a, &r);
+
+        (final_q, final_r)
+    }
+
     /// Implement unsigned division operation
     fn udiv_bits(&mut self, a: &[AigNode], b: &[AigNode]) -> Vec<AigNode> {
-        let width = a.len();
-        let mut result = Vec::with_capacity(width);
-        
-        // For now, implement a simple constant folding approach
-        // In a real implementation, this would need to handle symbolic division
-        let a_val = self.bits_to_uint(a);
-        let b_val = self.bits_to_uint(b);
-        
-        if b_val == 0 {
-            // Division by zero - result is all 1s (max value)
-            for _ in 0..width {
-                result.push(self.const_lit(true));
-            }
-        } else {
-            let div_result = a_val / b_val;
-            for i in 0..width {
-                let bit = (div_result >> i) & 1 == 1;
-                result.push(self.const_lit(bit));
-            }
-        }
-        
-        result
+        self.udiv_rem_bits(a, b).0
     }
-    
+
     /// Implement unsigned remainder operation
     fn urem_bits(&mut self, a: &[AigNode], b: &[AigNode]) -> Vec<AigNode> {
-        let width = a.len();
-        let mut result = Vec::with_capacity(width);
-        
-        // For now, implement a simple constant folding approach
-        // In a real implementation, this would need to handle symbolic remainder
-        let a_val = self.bits_to_uint(a);
-        let b_val = self.bits_to_uint(b);
-        
-        if b_val == 0 {
-            // Remainder when dividing by zero - result is the dividend
-            for i in 0..width {
-                let bit = (a_val >> i) & 1 == 1;
-                result.push(self.const_lit(bit));
-            }
-        } else {
-            let rem_result = a_val % b_val;
-            for i in 0..width {
-                let bit = (rem_result >> i) & 1 == 1;
-                result.push(self.const_lit(bit));
-            }
-        }
-        
-        result
+        self.udiv_rem_bits(a, b).1
     }
-    
+
     /// Implement reduction OR operation (returns 1 if any bit is 1, else 0)
     fn redor_bits(&mut self, bits: &[AigNode]) -> AigNode {
         if bits.is_empty() {
             return self.const_lit(false);
         }
-        
+
         // Constant folding
         if self.config.enable_const_prop {
             let all_const = bits.iter().all(|bit| bit.is_true() || bit.is_false());
@@ -700,7 +763,7 @@ impl AigBitBlaster {
                 return self.const_lit(has_true);
             }
         }
-        
+
         // OR all bits together
         let mut result = bits[0].clone();
         for bit in &bits[1..] {
@@ -708,13 +771,13 @@ impl AigBitBlaster {
         }
         result
     }
-    
+
     /// Implement reduction AND operation (returns 1 if all bits are 1, else 0)
     fn redand_bits(&mut self, bits: &[AigNode]) -> AigNode {
         if bits.is_empty() {
             return self.const_lit(true);
         }
-        
+
         // Constant folding
         if self.config.enable_const_prop {
             let all_const = bits.iter().all(|bit| bit.is_true() || bit.is_false());
@@ -723,7 +786,7 @@ impl AigBitBlaster {
                 return self.const_lit(all_true);
             }
         }
-        
+
         // AND all bits together
         let mut result = bits[0].clone();
         for bit in &bits[1..] {
@@ -731,13 +794,13 @@ impl AigBitBlaster {
         }
         result
     }
-    
+
     /// Implement reduction XOR operation (returns 1 if odd number of bits are 1, else 0)
     fn redxor_bits(&mut self, bits: &[AigNode]) -> AigNode {
         if bits.is_empty() {
             return self.const_lit(false);
         }
-        
+
         // Constant folding
         if self.config.enable_const_prop {
             let all_const = bits.iter().all(|bit| bit.is_true() || bit.is_false());
@@ -747,7 +810,7 @@ impl AigBitBlaster {
                 return self.const_lit(is_odd);
             }
         }
-        
+
         // XOR all bits together
         let mut result = bits[0].clone();
         for bit in &bits[1..] {
@@ -755,33 +818,33 @@ impl AigBitBlaster {
         }
         result
     }
-    
+
     /// Implement rotate left operation
     fn rotate_left_bits(&mut self, bits: &[AigNode], amount: u32) -> Vec<AigNode> {
         let width = bits.len();
         let mut result = Vec::with_capacity(width);
         let rotate_amount = amount as usize % width;
-        
+
         for i in 0..width {
             let src_pos = (i + width - rotate_amount) % width;
             result.push(bits[src_pos].clone());
         }
         result
     }
-    
+
     /// Implement rotate right operation
     fn rotate_right_bits(&mut self, bits: &[AigNode], amount: u32) -> Vec<AigNode> {
         let width = bits.len();
         let mut result = Vec::with_capacity(width);
         let rotate_amount = amount as usize % width;
-        
+
         for i in 0..width {
             let src_pos = (i + rotate_amount) % width;
             result.push(bits[src_pos].clone());
         }
         result
     }
-    
+
     /// Implement XNOR operation (bitwise XNOR)
     fn xnor_bits(&mut self, a: &[AigNode], b: &[AigNode]) -> Vec<AigNode> {
         assert_eq!(a.len(), b.len());
@@ -793,17 +856,17 @@ impl AigBitBlaster {
         }
         result
     }
-    
+
     /// Implement signed division operation
     fn sdiv_bits(&mut self, a: &[AigNode], b: &[AigNode]) -> Vec<AigNode> {
         let width = a.len();
         let mut result = Vec::with_capacity(width);
-        
+
         // For now, implement a simple constant folding approach
         // In a real implementation, this would need to handle symbolic signed division
         let a_val = self.bits_to_sint(a);
         let b_val = self.bits_to_sint(b);
-        
+
         if b_val == 0 {
             // Division by zero - result is all 1s (max negative value)
             for _ in 0..width {
@@ -818,16 +881,16 @@ impl AigBitBlaster {
         }
         result
     }
-    
+
     /// Implement signed remainder operation
     fn srem_bits(&mut self, a: &[AigNode], b: &[AigNode]) -> Vec<AigNode> {
         let width = a.len();
         let mut result = Vec::with_capacity(width);
-        
+
         // For now, implement a simple constant folding approach
         let a_val = self.bits_to_sint(a);
         let b_val = self.bits_to_sint(b);
-        
+
         if b_val == 0 {
             // Remainder when dividing by zero - result is the dividend
             for i in 0..width {
@@ -843,16 +906,16 @@ impl AigBitBlaster {
         }
         result
     }
-    
+
     /// Implement signed modulo operation
     fn smod_bits(&mut self, a: &[AigNode], b: &[AigNode]) -> Vec<AigNode> {
         let width = a.len();
         let mut result = Vec::with_capacity(width);
-        
+
         // For now, implement a simple constant folding approach
         let a_val = self.bits_to_sint(a);
         let b_val = self.bits_to_sint(b);
-        
+
         if b_val == 0 {
             // Modulo by zero - result is the dividend
             for i in 0..width {
@@ -869,7 +932,7 @@ impl AigBitBlaster {
         }
         result
     }
-    
+
     /// Implement signed less than or equal operation
     fn sle_bits(&mut self, a: &[AigNode], b: &[AigNode]) -> AigNode {
         // For now, implement a simple constant folding approach
@@ -877,13 +940,13 @@ impl AigBitBlaster {
         let b_val = self.bits_to_sint(b);
         self.const_lit(a_val <= b_val)
     }
-    
+
     /// Convert bit vector to signed integer
     fn bits_to_sint(&self, bits: &[AigNode]) -> i32 {
         if bits.is_empty() {
             return 0;
         }
-        
+
         let mut result = 0i32;
         for (i, bit) in bits.iter().enumerate() {
             if bit.is_true() {
@@ -897,34 +960,32 @@ impl AigBitBlaster {
         }
         result
     }
-    
+
     /// Implement negation operation (two's complement)
     fn neg_bits(&mut self, bits: &[AigNode]) -> Vec<AigNode> {
         let width = bits.len();
-        let mut result = Vec::with_capacity(width);
-        
-        // For now, implement a simple constant folding approach
-        let val = self.bits_to_sint(bits);
-        let neg_val = -val;
-        
-        for i in 0..width {
-            let bit = (neg_val >> i) & 1 == 1;
-            result.push(self.const_lit(bit));
+        // ~x
+        let not_bits: Vec<AigNode> = bits.iter().map(|b| self.mk_not(b)).collect();
+        // 1
+        let mut one = vec![self.const_lit(false); width];
+        if width > 0 {
+            one[0] = self.const_lit(true);
         }
-        result
+        // ~x + 1
+        self.add_bits(&not_bits, &one)
     }
-    
+
     /// Implement sign extension operation
     fn sign_extend_bits(&mut self, bits: &[AigNode], extra: u32) -> Vec<AigNode> {
         let original_width = bits.len();
         let new_width = original_width + extra as usize;
         let mut result = Vec::with_capacity(new_width);
-        
+
         // Copy the original bits
         for bit in bits {
             result.push(bit.clone());
         }
-        
+
         // Sign extend by repeating the most significant bit
         if original_width > 0 {
             let sign_bit = &bits[original_width - 1];
@@ -937,43 +998,128 @@ impl AigBitBlaster {
                 result.push(self.const_false.clone());
             }
         }
-        
+
         result
     }
-    
+
     /// Implement bitwise NAND operation
     fn nand_bits(&mut self, a: &[AigNode], b: &[AigNode]) -> Vec<AigNode> {
         assert_eq!(a.len(), b.len());
         let mut result = Vec::with_capacity(a.len());
-        
+
         for i in 0..a.len() {
             // NAND(a, b) = NOT(AND(a, b))
             let and_result = self.aig_mgr.mk_and(&a[i], &b[i]);
             let nand_result = self.aig_mgr.mk_not(&and_result);
             result.push(nand_result);
         }
-        
+
         result
     }
-    
+
     /// Implement bitwise NOR operation
     fn nor_bits(&mut self, a: &[AigNode], b: &[AigNode]) -> Vec<AigNode> {
         assert_eq!(a.len(), b.len());
         let mut result = Vec::with_capacity(a.len());
-        
+
         for i in 0..a.len() {
             // NOR(a, b) = NOT(OR(a, b))
             let or_result = self.aig_mgr.mk_or(&a[i], &b[i]);
             let nor_result = self.aig_mgr.mk_not(&or_result);
             result.push(nor_result);
         }
-        
+
         result
     }
-    
+
     /// Get statistics about the AIG
     pub fn get_statistics(&self) -> &super::aig::AigStatistics {
         self.aig_mgr.statistics()
+    }
+
+    /// Convert AIG to CNF using Tseitin transformation
+    pub fn emit_cnf(&mut self) {
+        use super::cnf::BoolLit;
+
+        // Create mapping from AIG node IDs to CNF variables
+        // Key: (base_id, is_negated), Value: CNF variable
+        let mut var_map: HashMap<(i64, bool), usize> = HashMap::new();
+        let mut next_var = self.cnf.num_vars + 1;
+        let true_id = AigNode::TRUE_ID;
+
+        // Helper to get or create CNF variable for an AIG node
+        let get_var = |var_map: &mut HashMap<(i64, bool), usize>,
+                       next_var: &mut usize,
+                       cnf: &mut Cnf,
+                       node: &AigNode|
+         -> BoolLit {
+            let key = (node.get_raw_id(), node.is_negated());
+            if let Some(&var) = var_map.get(&key) {
+                return BoolLit(var, true);
+            }
+            let var = *next_var;
+            *next_var += 1;
+            var_map.insert(key, var);
+            cnf.num_vars = cnf.num_vars.max(var + 1);
+            BoolLit(var, true)
+        };
+
+        // Process all AIG nodes and emit CNF clauses
+        for node_data in self.aig_mgr.node_data() {
+            if node_data.id() <= true_id {
+                continue; // Skip TRUE/FALSE nodes
+            }
+            if let (Some(left), Some(right)) = (node_data.left(), node_data.right()) {
+                // This is an AND gate: output = left AND right
+                // The output is NOT negated (AigNode::new(id, false))
+                let output = get_var(&mut var_map, &mut next_var, &mut self.cnf, left); // Placeholder
+                let output_lit = BoolLit(node_data.id() as usize, true);
+                let left_lit = get_var(&mut var_map, &mut next_var, &mut self.cnf, left);
+                let right_lit = get_var(&mut var_map, &mut next_var, &mut self.cnf, right);
+
+                // CNF encoding for AND: output = left AND right
+                self.cnf.add_clause(vec![
+                    BoolLit(left_lit.0, false),
+                    BoolLit(right_lit.0, false),
+                    output_lit,
+                ]);
+                self.cnf
+                    .add_clause(vec![left_lit, BoolLit(output_lit.0, false)]);
+                self.cnf
+                    .add_clause(vec![right_lit, BoolLit(output_lit.0, false)]);
+            }
+        }
+
+        // Handle negated nodes: for each node (id, true), add constraint that it's NOT (id, false)
+        let mut negated_clauses = 0;
+        for node_data in self.aig_mgr.node_data() {
+            if node_data.id() <= true_id {
+                continue;
+            }
+            // Check if there's a negated version of this node
+            let pos_key = (node_data.id(), false);
+            let neg_key = (node_data.id(), true);
+
+            let has_pos = var_map.contains_key(&pos_key);
+            let has_neg = var_map.contains_key(&neg_key);
+
+            if has_pos && has_neg {
+                let pos_var = var_map.get(&pos_key).unwrap();
+                let neg_var = var_map.get(&neg_key).unwrap();
+                // (NOT pos) OR (NOT neg) - they can't both be true
+                self.cnf
+                    .add_clause(vec![BoolLit(*pos_var, false), BoolLit(*neg_var, false)]);
+                negated_clauses += 1;
+            }
+        }
+
+        debug!(
+            "AIG to CNF: {} nodes, {} CNF vars, {} clauses ({} negating)",
+            self.aig_mgr.node_data().len(),
+            self.cnf.num_vars,
+            self.cnf.clauses.len(),
+            negated_clauses
+        );
     }
 }
 
@@ -986,30 +1132,30 @@ impl Default for AigBitBlaster {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_aig_bitblaster_basic() {
         let mut blaster = AigBitBlaster::new();
-        
+
         // Test basic operations
         let a = blaster.new_bool();
         let b = blaster.new_bool();
         let and_result = blaster.mk_and(&a, &b);
         let or_result = blaster.mk_or(&a, &b);
         let xor_result = blaster.mk_xor(&a, &b);
-        
+
         assert!(and_result.is_and());
         assert!(or_result.is_and());
         assert!(xor_result.is_and());
     }
-    
+
     #[test]
     fn test_aig_bitblaster_constants() {
         let mut blaster = AigBitBlaster::new();
-        
+
         let true_lit = blaster.const_lit(true);
         let false_lit = blaster.const_lit(false);
-        
+
         assert!(true_lit.is_true());
         assert!(false_lit.is_false());
     }

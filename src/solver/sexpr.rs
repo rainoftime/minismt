@@ -44,7 +44,9 @@ impl<'a> Parser<'a> {
             }
             if self.peek() == Some(';') {
                 while let Some(c) = self.bump() {
-                    if c == '\n' { break; }
+                    if c == '\n' {
+                        break;
+                    }
                 }
                 continue;
             }
@@ -68,7 +70,10 @@ impl<'a> Parser<'a> {
         loop {
             self.skip_ws();
             match self.peek() {
-                Some(')') => { self.bump(); break; }
+                Some(')') => {
+                    self.bump();
+                    break;
+                }
                 Some(_) => items.push(self.parse_expr()?),
                 None => bail!("unterminated list"),
             }
@@ -84,18 +89,20 @@ impl<'a> Parser<'a> {
             while let Some(c) = self.peek() {
                 s.push(c);
                 self.bump();
-                if c == '|' { break; }
+                if c == '|' {
+                    break;
+                }
             }
             return Ok(SExpr::Atom(s));
         }
         let mut s = String::new();
         while let Some(c) = self.peek() {
-            if c.is_whitespace() || c == '(' || c == ')' { break; }
+            if c.is_whitespace() || c == '(' || c == ')' {
+                break;
+            }
             s.push(c);
             self.bump();
         }
         Ok(SExpr::Atom(s))
     }
 }
-
-

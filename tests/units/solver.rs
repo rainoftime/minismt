@@ -41,7 +41,8 @@ fn test_smt_solver_run_script_assert() {
 #[test]
 fn test_smt_solver_run_script_check_sat() {
     let mut solver = SmtSolver::new();
-    let script = "(set-logic QF_BV)\n(declare-const x (_ BitVec 8))\n(assert (= x #x00))\n(check-sat)";
+    let script =
+        "(set-logic QF_BV)\n(declare-const x (_ BitVec 8))\n(assert (= x #x00))\n(check-sat)";
     let result = solver.run_script(script).unwrap();
     assert!(result.is_some());
     let output = result.unwrap();
@@ -385,18 +386,6 @@ fn test_smt_solver_run_script_boolean_logic() {
     let output = result.unwrap();
     assert!(output.contains("sat") || output.contains("unsat"));
 }
-
-
-
-
-
-
-
-
-
-
-
-
 
 #[test]
 fn test_smt_solver_run_script_mixed_logic() {

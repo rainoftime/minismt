@@ -44,10 +44,9 @@ def default_minismt_bin(project_root: Path) -> Optional[str]:
     if env := os.environ.get("MINISMT_BIN"):
         if Path(env).exists():
             return env
-    for candidate in [project_root / "target" / "debug" / "minismt", project_root / "target" / "release" / "minismt"]:
+    # Prefer release over debug for more accurate results
+    for candidate in [project_root / "target" / "release" / "minismt", project_root / "target" / "debug" / "minismt"]:
         if candidate.exists():
-            #print(candidate)
-            #exit(0)
             return str(candidate)
     return None
 
